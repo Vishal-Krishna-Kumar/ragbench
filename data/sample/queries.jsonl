@@ -1,0 +1,25 @@
+{"id": "q01", "text": "how does rag reduce hallucinations"}
+{"id": "q02", "text": "best chunk size for splitting documents"}
+{"id": "q03", "text": "what are k1 and b in bm25"}
+{"id": "q04", "text": "semantic search with embeddings and cosine similarity"}
+{"id": "q05", "text": "combine keyword and vector search"}
+{"id": "q06", "text": "merge ranked lists without score calibration"}
+{"id": "q07", "text": "metrics to evaluate a retriever ndcg mrr"}
+{"id": "q08", "text": "check if an answer is supported by the context"}
+{"id": "q09", "text": "store embeddings for nearest neighbour search"}
+{"id": "q10", "text": "cross-encoder to improve top results"}
+{"id": "q11", "text": "run the same app in ci and production"}
+{"id": "q12", "text": "automatically deploy after tests pass github actions"}
+{"id": "q13", "text": "restart failed pods and scale deployments"}
+{"id": "q14", "text": "let users grant access without sharing password"}
+{"id": "q15", "text": "make database joins faster"}
+{"id": "q16", "text": "reduce database load with an in-memory store"}
+{"id": "q17", "text": "logs metrics and traces for production incidents"}
+{"id": "q18", "text": "model memorises training data"}
+{"id": "q19", "text": "difference between precision and recall"}
+{"id": "q20", "text": "self-attention long range context"}
+{"id": "q21", "text": "should I fine-tune or use retrieval"}
+{"id": "q22", "text": "hidden instructions in retrieved documents"}
+{"id": "q23", "text": "llm that plans and calls tools in a loop"}
+{"id": "q24", "text": "where does rag request latency come from"}
+{"id": "q25", "text": "decide if a product change improved the metric"}
