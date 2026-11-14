@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a retriever, metric, output format or API change
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to measure or do?
+      description: Describe the use case before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What would the CLI flag, function or endpoint look like?
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This can be done without adding a heavy dependency to the core package
+        - label: I am willing to open a pull request for it
