@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -41,7 +41,7 @@ def _top_k(doc_ids: Sequence[str], scores: np.ndarray, k: int) -> list[tuple[str
     return [(doc_ids[i], float(scores[i])) for i in idx]
 
 
-def _postings(per_doc: Sequence[dict[str, float]]) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+def _postings(per_doc: Sequence[Mapping[str, float]]) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Invert per-document term weights into ``term -> (doc indices, weights)`` arrays.
 
     A query only touches the postings of its own terms, so scoring costs time proportional to
@@ -79,7 +79,9 @@ class BM25Retriever:
         self._avgdl = float(self._len.mean()) if len(docs) else 0.0
         n = len(docs)
         # BM25+ style floor keeps IDF positive for very common terms.
-        self._idf = {t: math.log(1 + (n - len(idx) + 0.5) / (len(idx) + 0.5)) for t, (idx, _) in self._post.items()}
+        self._idf = {
+            t: math.log(1 + (n - len(idx) + 0.5) / (len(idx) + 0.5)) for t, (idx, _) in self._post.items()
+        }
         return self
 
     def scores(self, query: str) -> np.ndarray:

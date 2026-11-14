@@ -13,7 +13,7 @@ authors = [{ name = "Vishal Krishna Kumar" }]
 dependencies = ["numpy>=1.24", "fastapi>=0.110", "pydantic>=2", "uvicorn>=0.27"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.5"]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.5", "mypy>=1.10"]
 
 [project.scripts]
 ragbench = "ragbench.cli:main"
@@ -26,3 +26,9 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 110
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true

@@ -56,7 +56,9 @@ def convert_beir(src: str | Path, out: str | Path, split: str = "test") -> dict[
         {"id": d["_id"], "title": d.get("title", ""), "text": d.get("text", "")}
         for d in _read_jsonl(src / "corpus.jsonl")
     ]
-    queries = [{"id": q["_id"], "text": q["text"]} for q in _read_jsonl(src / "queries.jsonl") if q["_id"] in judged]
+    queries = [
+        {"id": q["_id"], "text": q["text"]} for q in _read_jsonl(src / "queries.jsonl") if q["_id"] in judged
+    ]
 
     out.mkdir(parents=True, exist_ok=True)
     _write_jsonl(out / "corpus.jsonl", corpus)
@@ -89,8 +91,10 @@ def main(argv: list[str] | None = None) -> int:
 
     out = Path(args.out or f"data/{args.name}")
     counts = convert_beir(download_beir(args.name, args.cache), out, args.split)
-    print(f"{args.name} ({args.split}): {counts['docs']} docs, {counts['queries']} queries, "
-          f"{counts['qrels']} judgements -> {out}")
+    print(
+        f"{args.name} ({args.split}): {counts['docs']} docs, {counts['queries']} queries, "
+        f"{counts['qrels']} judgements -> {out}"
+    )
     return 0
 
 

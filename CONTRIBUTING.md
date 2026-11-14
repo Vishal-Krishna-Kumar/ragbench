@@ -16,11 +16,13 @@ pip install -e ".[dev]"
 
 ```bash
 ruff check .                         # lint
+ruff format --check .                # formatting (run `ruff format .` to fix)
+mypy ragbench                        # type check
 pytest -q                            # unit and API tests
 python -m ragbench.cli data/sample   # the benchmark table should still print
 ```
 
-CI runs the same three commands on Python 3.10 and 3.12, then builds the Docker image and
+CI runs the same commands on Python 3.10, 3.12 and 3.13, then builds the Docker image and
 smoke-tests the container.
 
 ## What makes a good change
