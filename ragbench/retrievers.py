@@ -41,6 +41,21 @@ def _top_k(doc_ids: Sequence[str], scores: np.ndarray, k: int) -> list[tuple[str
     return [(doc_ids[i], float(scores[i])) for i in idx]
 
 
+def _postings(per_doc: Sequence[dict[str, float]]) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Invert per-document term weights into ``term -> (doc indices, weights)`` arrays.
+
+    A query only touches the postings of its own terms, so scoring costs time proportional to
+    the number of documents that contain those terms instead of the size of the corpus.
+    """
+    idx: dict[str, list[int]] = {}
+    val: dict[str, list[float]] = {}
+    for i, weights in enumerate(per_doc):
+        for term, w in weights.items():
+            idx.setdefault(term, []).append(i)
+            val.setdefault(term, []).append(w)
+    return {t: (np.array(idx[t], dtype=np.intp), np.array(val[t], dtype=float)) for t in idx}
+
+
 @dataclass
 class BM25Retriever:
     """Okapi BM25 with the usual ``k1`` / ``b`` parameters and a non-negative IDF."""
@@ -49,7 +64,7 @@ class BM25Retriever:
     b: float = 0.75
     name: str = "bm25"
     _doc_ids: list[str] = field(default_factory=list, repr=False)
-    _tf: list[Counter] = field(default_factory=list, repr=False)
+    _post: dict[str, tuple[np.ndarray, np.ndarray]] = field(default_factory=dict, repr=False)
     _len: np.ndarray | None = field(default=None, repr=False)
     _idf: dict[str, float] = field(default_factory=dict, repr=False)
     _avgdl: float = 0.0
@@ -59,13 +74,12 @@ class BM25Retriever:
             raise ValueError("doc_ids and docs must have the same length")
         self._doc_ids = list(doc_ids)
         tokenized = [tokenize(d) for d in docs]
-        self._tf = [Counter(toks) for toks in tokenized]
+        self._post = _postings([Counter(toks) for toks in tokenized])
         self._len = np.array([len(t) for t in tokenized], dtype=float)
         self._avgdl = float(self._len.mean()) if len(docs) else 0.0
         n = len(docs)
-        df = Counter(term for tf in self._tf for term in tf)
         # BM25+ style floor keeps IDF positive for very common terms.
-        self._idf = {t: math.log(1 + (n - d + 0.5) / (d + 0.5)) for t, d in df.items()}
+        self._idf = {t: math.log(1 + (n - len(idx) + 0.5) / (len(idx) + 0.5)) for t, (idx, _) in self._post.items()}
         return self
 
     def scores(self, query: str) -> np.ndarray:
@@ -78,8 +92,8 @@ class BM25Retriever:
             idf = self._idf.get(term)
             if idf is None:
                 continue
-            tf = np.array([d.get(term, 0) for d in self._tf], dtype=float)
-            out += idf * tf * (self.k1 + 1) / (tf + norm)
+            idx, tf = self._post[term]
+            out[idx] += idf * tf * (self.k1 + 1) / (tf + norm[idx])
         return out
 
     def search(self, query: str, k: int = 10) -> list[tuple[str, float]]:
@@ -88,23 +102,22 @@ class BM25Retriever:
 
 @dataclass
 class TfidfRetriever:
-    """Sublinear TF-IDF document vectors, L2-normalised, ranked by cosine similarity."""
+    """Sublinear TF-IDF document vectors, L2-normalised, ranked by cosine similarity.
+
+    Document vectors are stored as an inverted index rather than a dense matrix, so memory
+    grows with the number of (document, term) pairs instead of documents x vocabulary.
+    """
 
     name: str = "tfidf"
     _doc_ids: list[str] = field(default_factory=list, repr=False)
-    _vocab: dict[str, int] = field(default_factory=dict, repr=False)
-    _idf: np.ndarray | None = field(default=None, repr=False)
-    _matrix: np.ndarray | None = field(default=None, repr=False)
+    _idf: dict[str, float] = field(default_factory=dict, repr=False)
+    _post: dict[str, tuple[np.ndarray, np.ndarray]] | None = field(default=None, repr=False)
 
-    def _vectorize(self, tokens: list[str]) -> np.ndarray:
-        assert self._idf is not None
-        v = np.zeros(len(self._vocab))
-        for term, c in Counter(tokens).items():
-            j = self._vocab.get(term)
-            if j is not None:
-                v[j] = (1 + math.log(c)) * self._idf[j]
-        n = np.linalg.norm(v)
-        return v / n if n else v
+    def _weights(self, tokens: list[str]) -> dict[str, float]:
+        """L2-normalised sublinear TF-IDF weights for the known terms in ``tokens``."""
+        w = {t: (1 + math.log(c)) * self._idf[t] for t, c in Counter(tokens).items() if t in self._idf}
+        norm = math.sqrt(sum(x * x for x in w.values()))
+        return {t: x / norm for t, x in w.items()} if norm else {}
 
     def fit(self, doc_ids: Sequence[str], docs: Sequence[str]) -> TfidfRetriever:
         if len(doc_ids) != len(docs):
@@ -112,16 +125,19 @@ class TfidfRetriever:
         self._doc_ids = list(doc_ids)
         tokenized = [tokenize(d) for d in docs]
         df = Counter(t for toks in tokenized for t in set(toks))
-        self._vocab = {t: i for i, t in enumerate(sorted(df))}
         n = len(docs)
-        self._idf = np.array([math.log((1 + n) / (1 + df[t])) + 1 for t in sorted(df)])
-        self._matrix = np.vstack([self._vectorize(t) for t in tokenized]) if n else np.zeros((0, 0))
+        self._idf = {t: math.log((1 + n) / (1 + d)) + 1 for t, d in df.items()}
+        self._post = _postings([self._weights(toks) for toks in tokenized])
         return self
 
     def scores(self, query: str) -> np.ndarray:
-        if self._matrix is None:
+        if self._post is None:
             raise RuntimeError("call fit() before search()")
-        return self._matrix @ self._vectorize(tokenize(query))
+        out = np.zeros(len(self._doc_ids))
+        for term, qw in self._weights(tokenize(query)).items():
+            idx, w = self._post[term]
+            out[idx] += qw * w
+        return out
 
     def search(self, query: str, k: int = 10) -> list[tuple[str, float]]:
         return _top_k(self._doc_ids, self.scores(query), k)
