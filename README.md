@@ -12,13 +12,13 @@ standard IR metrics, a CLI that prints a comparison table, and a FastAPI service
 - **Metrics:** Recall@k, Precision@k, Hit@k, MRR and graded **nDCG@k**, plus mean / p95 latency per query.
 - **Data format:** BEIR-style `corpus.jsonl`, `queries.jsonl`, `qrels.jsonl` (graded relevance).
 - **Service:** `POST /index`, `POST /search`, `POST /evaluate`, `GET /health`, with OpenAPI docs at `/docs`.
-- **Engineering:** typed code, 19 unit/integration tests, GitHub Actions CI (lint, tests on 3.10/3.12, Docker build and container smoke test), non-root Docker image with a health check.
+- **Engineering:** typed code, 24 unit/integration tests, GitHub Actions CI (lint, tests on 3.10/3.12, Docker build and container smoke test), non-root Docker image with a health check.
 
 ## Quick start
 ```bash
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest -q                                              # 19 tests
+pytest -q                                              # 24 tests
 python -m ragbench.cli data/sample                     # benchmark table
 uvicorn ragbench.api:app --reload                      # API at http://localhost:8000/docs
 ```
@@ -27,6 +27,14 @@ Docker:
 ```bash
 docker build -t ragbench .
 docker run -p 8000:8000 ragbench
+```
+
+## Example: CLI output formats
+```bash
+python -m ragbench.cli data/sample                                  # Markdown table (default)
+python -m ragbench.cli data/sample --format json                    # summary as JSON, for scripts and CI
+python -m ragbench.cli data/sample --retrievers bm25 --format csv   # one row per retriever
+python -m ragbench.cli data/sample --json results.json              # also save per-query detail to a file
 ```
 
 ## Example: API

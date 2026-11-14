@@ -1,12 +1,16 @@
-"""Command line: compare retrievers on a dataset and print a Markdown table.
+"""Command line: compare retrievers on a dataset.
 
 python -m ragbench.cli data/sample
-python -m ragbench.cli data/sample --retrievers bm25 hybrid_rrf --json results.json
+python -m ragbench.cli data/sample --format json
+python -m ragbench.cli data/sample --retrievers bm25 hybrid_rrf --format csv
+python -m ragbench.cli data/sample --json results.json
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import sys
 
@@ -15,12 +19,63 @@ from .evaluate import evaluate_retriever
 from .retrievers import REGISTRY, make_retriever
 
 COLUMNS = ["hit@1", "hit@3", "recall@5", "mrr", "ndcg@5", "ndcg@10"]
+FORMATS = ("markdown", "json", "csv")
+
+
+def _summary(res: dict) -> dict:
+    """One result without the per-query detail."""
+    return {k: res[k] for k in ("retriever", "num_queries", "metrics", "latency_ms")}
+
+
+def render_markdown(results: list[dict], dataset: str, num_docs: int) -> str:
+    n = results[0]["num_queries"] if results else 0
+    lines = [
+        f"Dataset: {dataset}  ({num_docs} docs, {n} judged queries)",
+        "",
+        "| retriever | " + " | ".join(COLUMNS) + " | mean latency (ms) |",
+        "|---|" + "---|" * (len(COLUMNS) + 1),
+    ]
+    for res in results:
+        cells = [f"{res['metrics'][c]:.3f}" for c in COLUMNS]
+        lines.append(f"| {res['retriever']} | " + " | ".join(cells) + f" | {res['latency_ms']['mean']:.2f} |")
+    return "\n".join(lines)
+
+
+def render_json(results: list[dict], dataset: str, num_docs: int) -> str:
+    payload = {"dataset": dataset, "num_docs": num_docs, "results": [_summary(r) for r in results]}
+    return json.dumps(payload, indent=2)
+
+
+def render_csv(results: list[dict], dataset: str, num_docs: int) -> str:
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(["retriever", "num_queries", *COLUMNS, "latency_mean_ms", "latency_p95_ms"])
+    for res in results:
+        writer.writerow(
+            [
+                res["retriever"],
+                res["num_queries"],
+                *(res["metrics"][c] for c in COLUMNS),
+                res["latency_ms"]["mean"],
+                res["latency_ms"]["p95"],
+            ]
+        )
+    return buf.getvalue().rstrip("\n")
+
+
+RENDERERS = {"markdown": render_markdown, "json": render_json, "csv": render_csv}
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Benchmark retrievers for RAG.")
     ap.add_argument("dataset", help="directory with corpus.jsonl, queries.jsonl, qrels.jsonl")
     ap.add_argument("--retrievers", nargs="+", default=list(REGISTRY), choices=list(REGISTRY))
+    ap.add_argument(
+        "--format",
+        choices=FORMATS,
+        default="markdown",
+        help="how to print the summary to stdout (default: markdown table)",
+    )
     ap.add_argument("--json", help="also write full results (incl. per-query) to this file")
     args = ap.parse_args(argv)
 
@@ -30,13 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         r = make_retriever(name).fit(ds.doc_ids, ds.docs)
         results.append(evaluate_retriever(r, ds.queries, ds.qrels))
 
-    n = results[0]["num_queries"] if results else 0
-    print(f"Dataset: {args.dataset}  ({len(ds.doc_ids)} docs, {n} judged queries)\n")
-    print("| retriever | " + " | ".join(COLUMNS) + " | mean latency (ms) |")
-    print("|---|" + "---|" * (len(COLUMNS) + 1))
-    for res in results:
-        cells = [f"{res['metrics'][c]:.3f}" for c in COLUMNS]
-        print(f"| {res['retriever']} | " + " | ".join(cells) + f" | {res['latency_ms']['mean']:.2f} |")
+    print(RENDERERS[args.format](results, args.dataset, len(ds.doc_ids)))
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
