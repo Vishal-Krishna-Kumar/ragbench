@@ -69,5 +69,9 @@ tests/            metrics, retrievers, API
 - Cross-encoder reranking stage and per-stage latency budget.
 - Answer-level faithfulness scoring for the generation step.
 
+## Contributing
+Bug reports, new retrievers and new metrics are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup,
+checks and how to add a retriever.
+
 ## License
 MIT
