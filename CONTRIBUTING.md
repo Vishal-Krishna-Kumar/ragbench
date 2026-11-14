@@ -47,3 +47,10 @@ It will then show up in the CLI and the API without further changes.
 
 Use the issue templates. For bugs, the smallest dataset or request that reproduces the problem
 helps the most. Issues labelled `good first issue` are a good place to start.
+
+## Releasing (maintainer)
+
+1. Bump `__version__` in `ragbench/__init__.py` and add a section to `CHANGELOG.md`.
+2. Merge, then publish a GitHub release tagged `vX.Y.Z`.
+3. The `Release` workflow builds the package and uploads it to PyPI through trusted publishing.
+   This needs a one-time trusted-publisher entry for this repository on PyPI.

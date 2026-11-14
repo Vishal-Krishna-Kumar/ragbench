@@ -14,7 +14,14 @@ standard IR metrics, a CLI that prints a comparison table, and a FastAPI service
 - **Service:** `POST /index`, `POST /search`, `POST /evaluate`, `GET /health`, with OpenAPI docs at `/docs`.
 - **Engineering:** typed code, 33 unit/integration tests, GitHub Actions CI (lint, format and type checks, tests on 3.10/3.12/3.13, Docker build and container smoke test), non-root Docker image with a health check.
 
-## Quick start
+## Install
+```bash
+pip install git+https://github.com/Vishal-Krishna-Kumar/ragbench.git
+ragbench path/to/dataset            # corpus.jsonl, queries.jsonl, qrels.jsonl
+ragbench-beir scifact               # fetch a public dataset into data/scifact
+```
+
+## Quick start (from a clone)
 ```bash
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"

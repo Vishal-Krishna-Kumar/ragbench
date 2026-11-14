@@ -1,0 +1,25 @@
+# Changelog
+
+All notable changes to ragbench are listed here. Versions follow [semantic versioning](https://semver.org/).
+
+## 0.2.0 - 2026-11-13
+
+### Added
+- `--format markdown|json|csv` for the CLI summary.
+- `--misses K` and `evaluate.missed_queries()`: list the queries with no relevant document in the top K.
+- `ragbench.beir` (also installed as `ragbench-beir`): download a public BEIR dataset and convert it.
+- Measured results on BEIR SciFact in the README.
+- Contributing guide, issue forms and a pull request template.
+- Format check, type check and Python 3.13 in CI; `py.typed` marker for type checkers.
+
+### Changed
+- BM25 and TF-IDF score through an inverted index. On SciFact, TF-IDF query latency dropped from
+  216 ms to 0.22 ms and peak indexing memory from 4.1 GB to 123 MB, with identical top-10 results.
+- The package version is read from `ragbench.__version__`.
+
+## 0.1.0 - 2026-11-09
+
+- BM25, TF-IDF and hybrid RRF retrievers implemented with NumPy.
+- Recall@k, Precision@k, Hit@k, MRR and graded nDCG@k, with latency per query.
+- BEIR-style dataset loader, benchmark CLI and FastAPI service.
+- Docker image and GitHub Actions CI.
