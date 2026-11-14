@@ -7,3 +7,6 @@ __pycache__/
 build/
 dist/
 results*.json
+.beir_cache/
+data/*/
+!data/sample/

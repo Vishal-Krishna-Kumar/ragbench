@@ -12,13 +12,13 @@ standard IR metrics, a CLI that prints a comparison table, and a FastAPI service
 - **Metrics:** Recall@k, Precision@k, Hit@k, MRR and graded **nDCG@k**, plus mean / p95 latency per query.
 - **Data format:** BEIR-style `corpus.jsonl`, `queries.jsonl`, `qrels.jsonl` (graded relevance).
 - **Service:** `POST /index`, `POST /search`, `POST /evaluate`, `GET /health`, with OpenAPI docs at `/docs`.
-- **Engineering:** typed code, 28 unit/integration tests, GitHub Actions CI (lint, tests on 3.10/3.12, Docker build and container smoke test), non-root Docker image with a health check.
+- **Engineering:** typed code, 31 unit/integration tests, GitHub Actions CI (lint, tests on 3.10/3.12, Docker build and container smoke test), non-root Docker image with a health check.
 
 ## Quick start
 ```bash
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest -q                                              # 28 tests
+pytest -q                                              # 31 tests
 python -m ragbench.cli data/sample                     # benchmark table
 uvicorn ragbench.api:app --reload                      # API at http://localhost:8000/docs
 ```
@@ -68,6 +68,30 @@ graded relevance judgements written by hand — see `scripts/make_sample_data.py
 fusion adds little here. The value of the tool is running the same harness on *your* corpus, where
 paraphrased queries expose lexical-retrieval gaps — the case dense embeddings and hybrid search are for.
 
+## Results on a public dataset (BEIR SciFact)
+The sample set is tiny, so the same harness was run on [SciFact](https://github.com/beir-cellar/beir) from the
+BEIR benchmark: 5,183 scientific abstracts and 300 test queries with expert relevance judgements.
+
+```bash
+python -m ragbench.beir scifact --out data/scifact   # download and convert (about 3 MB)
+python -m ragbench.cli data/scifact
+```
+
+| retriever | hit@1 | hit@3 | recall@5 | mrr | ndcg@5 | ndcg@10 | mean latency (ms) |
+|---|---|---|---|---|---|---|---|
+| bm25 | 0.527 | 0.677 | 0.698 | 0.611 | 0.620 | 0.647 | 19.61 |
+| tfidf | 0.463 | 0.667 | 0.703 | 0.570 | 0.590 | 0.612 | 216.65 |
+| hybrid_rrf | 0.493 | 0.667 | 0.702 | 0.593 | 0.608 | 0.635 | 218.51 |
+
+**Honest read:** BM25 is the best of the three on ranking quality, and fusing it with TF-IDF lowers nDCG and MRR
+slightly (recall@10 goes the other way, 0.783 against 0.774). RRF helps most when the fused rankers make
+different mistakes, and these two are both lexical. The TF-IDF
+retriever is also about ten times slower per query, which is the next thing to fix. Latency was measured on
+a laptop and will differ on other hardware; the quality numbers are deterministic.
+
+`python -m ragbench.beir <name>` works for other BEIR datasets that use the same layout (for example
+`nfcorpus` or `fiqa`).
+
 ## Project layout
 ```
 ragbench/
@@ -76,6 +100,7 @@ ragbench/
   metrics.py      recall, precision, hit rate, MRR, nDCG
   evaluate.py     per-query + aggregate evaluation with latency
   data.py         BEIR-style dataset loader with validation
+  beir.py         download a public BEIR dataset and convert it
   api.py          FastAPI service
   cli.py          benchmark CLI
 tests/            metrics, retrievers, API
