@@ -50,3 +50,18 @@ def test_unknown_format_is_rejected():
     with pytest.raises(SystemExit) as exc:
         main([SAMPLE, "--format", "yaml"])
     assert exc.value.code == 2
+
+
+def test_misses_section_lists_queries_missed_at_rank_one(capsys):
+    assert main([SAMPLE, "--retrievers", "bm25", "--misses", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "Queries with no relevant document in the top 1:" in out
+    assert "bm25: 1 of 25" in out  # hit@1 is 0.96 on the sample set, so exactly one miss
+    assert out.count("\n- [") == 1
+
+
+def test_misses_are_included_in_json_output(capsys):
+    assert main([SAMPLE, "--retrievers", "bm25", "--format", "json", "--misses", "1"]) == 0
+    res = json.loads(capsys.readouterr().out)["results"][0]
+    assert len(res["misses@1"]) == 1
+    assert {"query_id", "query", "top"} <= set(res["misses@1"][0])

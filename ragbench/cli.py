@@ -4,6 +4,7 @@ python -m ragbench.cli data/sample
 python -m ragbench.cli data/sample --format json
 python -m ragbench.cli data/sample --retrievers bm25 hybrid_rrf --format csv
 python -m ragbench.cli data/sample --json results.json
+python -m ragbench.cli data/sample --misses 1          # list queries each retriever gets wrong at rank 1
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import json
 import sys
 
 from .data import load_dataset
-from .evaluate import evaluate_retriever
+from .evaluate import evaluate_retriever, missed_queries
 from .retrievers import REGISTRY, make_retriever
 
 COLUMNS = ["hit@1", "hit@3", "recall@5", "mrr", "ndcg@5", "ndcg@10"]
@@ -64,6 +65,19 @@ def render_csv(results: list[dict], dataset: str, num_docs: int) -> str:
 
 
 RENDERERS = {"markdown": render_markdown, "json": render_json, "csv": render_csv}
+MISS_CUTOFFS = (1, 3, 5, 10)
+
+
+def render_misses(results: list[dict], queries: dict[str, str], k: int) -> str:
+    """Markdown section listing, per retriever, the queries with no relevant hit in the top k."""
+    lines = [f"Queries with no relevant document in the top {k}:"]
+    for res in results:
+        missed = missed_queries(res, queries, k)
+        lines.append("")
+        lines.append(f"{res['retriever']}: {len(missed)} of {res['num_queries']}")
+        for row in missed:
+            lines.append(f"- [{row['query_id']}] {row['query']}  ->  retrieved {', '.join(row['top'])}")
+    return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -76,6 +90,13 @@ def main(argv: list[str] | None = None) -> int:
         default="markdown",
         help="how to print the summary to stdout (default: markdown table)",
     )
+    ap.add_argument(
+        "--misses",
+        type=int,
+        choices=MISS_CUTOFFS,
+        metavar="K",
+        help="also list the queries with no relevant document in the top K (1, 3, 5 or 10)",
+    )
     ap.add_argument("--json", help="also write full results (incl. per-query) to this file")
     args = ap.parse_args(argv)
 
@@ -85,7 +106,16 @@ def main(argv: list[str] | None = None) -> int:
         r = make_retriever(name).fit(ds.doc_ids, ds.docs)
         results.append(evaluate_retriever(r, ds.queries, ds.qrels))
 
-    print(RENDERERS[args.format](results, args.dataset, len(ds.doc_ids)))
+    if args.misses and args.format == "json":
+        payload = json.loads(render_json(results, args.dataset, len(ds.doc_ids)))
+        for summary, res in zip(payload["results"], results, strict=True):
+            summary[f"misses@{args.misses}"] = missed_queries(res, ds.queries, args.misses)
+        print(json.dumps(payload, indent=2))
+    else:
+        print(RENDERERS[args.format](results, args.dataset, len(ds.doc_ids)))
+        if args.misses and args.format == "markdown":
+            print()
+            print(render_misses(results, ds.queries, args.misses))
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
