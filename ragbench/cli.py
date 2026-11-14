@@ -20,7 +20,7 @@ from .evaluate import evaluate_retriever, missed_queries
 from .retrievers import REGISTRY, make_retriever
 
 COLUMNS = ["hit@1", "hit@3", "recall@5", "mrr", "ndcg@5", "ndcg@10"]
-FORMATS = ("markdown", "json", "csv")
+FORMATS = ("markdown", "table", "json", "csv")
 
 
 def _summary(res: dict) -> dict:
@@ -40,6 +40,29 @@ def render_markdown(results: list[dict], dataset: str, num_docs: int) -> str:
         cells = [f"{res['metrics'][c]:.3f}" for c in COLUMNS]
         lines.append(f"| {res['retriever']} | " + " | ".join(cells) + f" | {res['latency_ms']['mean']:.2f} |")
     return "\n".join(lines)
+
+
+def render_table(results: list[dict], dataset: str, num_docs: int) -> str:
+    """Aligned plain-text table for reading in a terminal."""
+    n = results[0]["num_queries"] if results else 0
+    header = ["retriever", *COLUMNS, "mean latency (ms)"]
+    rows = [
+        [
+            res["retriever"],
+            *(f"{res['metrics'][c]:.3f}" for c in COLUMNS),
+            f"{res['latency_ms']['mean']:.2f}",
+        ]
+        for res in results
+    ]
+    widths = [max(len(line[i]) for line in [header, *rows]) for i in range(len(header))]
+
+    def align(cells: list[str]) -> str:
+        rest = [cell.rjust(width) for cell, width in zip(cells[1:], widths[1:], strict=True)]
+        return "  ".join([cells[0].ljust(widths[0]), *rest])
+
+    rule = "  ".join("-" * width for width in widths)
+    title = f"Dataset: {dataset}  ({num_docs} docs, {n} judged queries)"
+    return "\n".join([title, "", align(header), rule, *(align(row) for row in rows)])
 
 
 def render_json(results: list[dict], dataset: str, num_docs: int) -> str:
@@ -64,7 +87,12 @@ def render_csv(results: list[dict], dataset: str, num_docs: int) -> str:
     return buf.getvalue().rstrip("\n")
 
 
-RENDERERS = {"markdown": render_markdown, "json": render_json, "csv": render_csv}
+RENDERERS = {
+    "markdown": render_markdown,
+    "table": render_table,
+    "json": render_json,
+    "csv": render_csv,
+}
 MISS_CUTOFFS = (1, 3, 5, 10)
 
 
@@ -88,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         "--format",
         choices=FORMATS,
         default="markdown",
-        help="how to print the summary to stdout (default: markdown table)",
+        help="how to print the summary: markdown (default), table (aligned for the terminal), json or csv",
     )
     ap.add_argument(
         "--misses",
