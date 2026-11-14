@@ -65,3 +65,13 @@ def test_misses_are_included_in_json_output(capsys):
     res = json.loads(capsys.readouterr().out)["results"][0]
     assert len(res["misses@1"]) == 1
     assert {"query_id", "query", "top"} <= set(res["misses@1"][0])
+
+
+def test_table_format_is_aligned(capsys):
+    assert main([SAMPLE, "--format", "table"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("Dataset: data/sample")
+    header, rule, *rows = lines[2:]
+    assert header.split()[0] == "retriever" and set(rule) == {"-", " "}
+    assert [row.split()[0] for row in rows] == list(REGISTRY)
+    assert len({len(line) for line in (header, rule, *rows)}) == 1
