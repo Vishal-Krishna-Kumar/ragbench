@@ -12,13 +12,13 @@ standard IR metrics, a CLI that prints a comparison table, and a FastAPI service
 - **Metrics:** Recall@k, Precision@k, Hit@k, MRR and graded **nDCG@k**, plus mean / p95 latency per query.
 - **Data format:** BEIR-style `corpus.jsonl`, `queries.jsonl`, `qrels.jsonl` (graded relevance).
 - **Service:** `POST /index`, `POST /search`, `POST /evaluate`, `GET /health`, with OpenAPI docs at `/docs`.
-- **Engineering:** typed code, 31 unit/integration tests, GitHub Actions CI (lint, tests on 3.10/3.12, Docker build and container smoke test), non-root Docker image with a health check.
+- **Engineering:** typed code, 33 unit/integration tests, GitHub Actions CI (lint, tests on 3.10/3.12, Docker build and container smoke test), non-root Docker image with a health check.
 
 ## Quick start
 ```bash
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest -q                                              # 31 tests
+pytest -q                                              # 33 tests
 python -m ragbench.cli data/sample                     # benchmark table
 uvicorn ragbench.api:app --reload                      # API at http://localhost:8000/docs
 ```
@@ -79,15 +79,31 @@ python -m ragbench.cli data/scifact
 
 | retriever | hit@1 | hit@3 | recall@5 | mrr | ndcg@5 | ndcg@10 | mean latency (ms) |
 |---|---|---|---|---|---|---|---|
-| bm25 | 0.527 | 0.677 | 0.698 | 0.611 | 0.620 | 0.647 | 19.61 |
-| tfidf | 0.463 | 0.667 | 0.703 | 0.570 | 0.590 | 0.612 | 216.65 |
-| hybrid_rrf | 0.493 | 0.667 | 0.702 | 0.593 | 0.608 | 0.635 | 218.51 |
+| bm25 | 0.527 | 0.677 | 0.698 | 0.611 | 0.620 | 0.647 | 0.20 |
+| tfidf | 0.463 | 0.667 | 0.703 | 0.570 | 0.590 | 0.612 | 0.27 |
+| hybrid_rrf | 0.493 | 0.667 | 0.702 | 0.593 | 0.608 | 0.635 | 0.82 |
 
 **Honest read:** BM25 is the best of the three on ranking quality, and fusing it with TF-IDF lowers nDCG and MRR
 slightly (recall@10 goes the other way, 0.783 against 0.774). RRF helps most when the fused rankers make
-different mistakes, and these two are both lexical. The TF-IDF
-retriever is also about ten times slower per query, which is the next thing to fix. Latency was measured on
-a laptop and will differ on other hardware; the quality numbers are deterministic.
+different mistakes, and these two are both lexical. Latency was measured on a laptop and will differ on
+other hardware; the quality numbers are deterministic.
+
+### Inverted index: same rankings, far less time and memory
+Both retrievers originally scored every document for every query, and TF-IDF kept a dense
+documents x vocabulary matrix. They now store postings (`term -> document indices and weights`) and only
+touch the documents that contain a query term. Measured on SciFact, same machine, before and after:
+
+| | before | after |
+|---|---|---|
+| TF-IDF mean query latency | 216.43 ms | 0.22 ms |
+| TF-IDF index build | 75.9 s | 11.9 s |
+| TF-IDF peak memory while indexing | 4,142 MB | 123 MB |
+| BM25 mean query latency | 21.14 ms | 0.38 ms |
+| BM25 index build | 1.6 s | 4.3 s |
+| Full three-retriever benchmark run | 3 min 17 s | 9 s |
+
+The top-10 results are identical for all 300 queries with both retrievers. BM25 indexing became slower
+because the postings are built in pure Python; that is the remaining cost.
 
 `python -m ragbench.beir <name>` works for other BEIR datasets that use the same layout (for example
 `nfcorpus` or `fiqa`).

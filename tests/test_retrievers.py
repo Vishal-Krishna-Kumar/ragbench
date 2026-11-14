@@ -81,3 +81,56 @@ def test_missed_queries_rejects_a_cutoff_that_was_not_evaluated():
     result = evaluate_retriever(make_retriever("tfidf").fit(["a"], ["some text"]), {"q": "text"}, {"q": {"a": 1}})
     with pytest.raises(ValueError, match="was not evaluated"):
         missed_queries(result, {"q": "text"}, k=7)
+
+
+CORPUS = [
+    "bm25 is a lexical ranking function based on term frequency",
+    "dense embeddings capture semantic similarity between passages",
+    "docker packages an application into a portable container image",
+    "kubernetes schedules container workloads across a cluster",
+    "term frequency and inverse document frequency weight rare terms higher",
+]
+
+
+def test_tfidf_inverted_index_matches_dense_cosine_similarity():
+    """The postings-based scores must equal a straightforward dense TF-IDF cosine."""
+    import math
+    from collections import Counter
+
+    import numpy as np
+
+    r = TfidfRetriever().fit([str(i) for i in range(len(CORPUS))], CORPUS)
+    toks = [tokenize(d) for d in CORPUS]
+    vocab = sorted({t for d in toks for t in d})
+    n = len(CORPUS)
+    idf = {t: math.log((1 + n) / (1 + sum(t in d for d in toks))) + 1 for t in vocab}
+
+    def dense(tokens):
+        v = np.array([(1 + math.log(c)) * idf[t] if (c := Counter(tokens)[t]) else 0.0 for t in vocab])
+        norm = np.linalg.norm(v)
+        return v / norm if norm else v
+
+    query = "container term frequency"
+    expected = np.array([dense(d) @ dense([t for t in tokenize(query) if t in idf]) for d in toks])
+    assert np.allclose(r.scores(query), expected)
+
+
+def test_bm25_inverted_index_matches_the_textbook_formula():
+    import math
+
+    import numpy as np
+
+    r = BM25Retriever().fit([str(i) for i in range(len(CORPUS))], CORPUS)
+    toks = [tokenize(d) for d in CORPUS]
+    n, avgdl = len(toks), sum(len(d) for d in toks) / len(toks)
+    query = "container term frequency"
+    expected = np.zeros(n)
+    for term in set(tokenize(query)):
+        df = sum(term in d for d in toks)
+        if not df:
+            continue
+        idf = math.log(1 + (n - df + 0.5) / (df + 0.5))
+        for i, d in enumerate(toks):
+            tf = d.count(term)
+            expected[i] += idf * tf * (r.k1 + 1) / (tf + r.k1 * (1 - r.b + r.b * len(d) / avgdl))
+    assert np.allclose(r.scores(query), expected)
