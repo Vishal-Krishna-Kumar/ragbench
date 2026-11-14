@@ -78,7 +78,9 @@ def test_missed_queries_rejects_a_cutoff_that_was_not_evaluated():
     from ragbench.evaluate import evaluate_retriever, missed_queries
     from ragbench.retrievers import make_retriever
 
-    result = evaluate_retriever(make_retriever("tfidf").fit(["a"], ["some text"]), {"q": "text"}, {"q": {"a": 1}})
+    result = evaluate_retriever(
+        make_retriever("tfidf").fit(["a"], ["some text"]), {"q": "text"}, {"q": {"a": 1}}
+    )
     with pytest.raises(ValueError, match="was not evaluated"):
         missed_queries(result, {"q": "text"}, k=7)
 

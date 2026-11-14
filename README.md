@@ -12,7 +12,7 @@ standard IR metrics, a CLI that prints a comparison table, and a FastAPI service
 - **Metrics:** Recall@k, Precision@k, Hit@k, MRR and graded **nDCG@k**, plus mean / p95 latency per query.
 - **Data format:** BEIR-style `corpus.jsonl`, `queries.jsonl`, `qrels.jsonl` (graded relevance).
 - **Service:** `POST /index`, `POST /search`, `POST /evaluate`, `GET /health`, with OpenAPI docs at `/docs`.
-- **Engineering:** typed code, 33 unit/integration tests, GitHub Actions CI (lint, tests on 3.10/3.12, Docker build and container smoke test), non-root Docker image with a health check.
+- **Engineering:** typed code, 33 unit/integration tests, GitHub Actions CI (lint, format and type checks, tests on 3.10/3.12/3.13, Docker build and container smoke test), non-root Docker image with a health check.
 
 ## Quick start
 ```bash

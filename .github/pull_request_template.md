@@ -6,6 +6,7 @@
 
 ## How it was checked
 
-- [ ] `ruff check .`
+- [ ] `ruff check .` and `ruff format --check .`
+- [ ] `mypy ragbench`
 - [ ] `pytest -q`
 - [ ] `python -m ragbench.cli data/sample` (paste the table if quality or latency changed)

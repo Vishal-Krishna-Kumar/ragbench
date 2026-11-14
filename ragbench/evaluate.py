@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping, Sequence
 from statistics import mean
+from typing import Any
 
 from .metrics import hit_rate_at_k, mrr, ndcg_at_k, precision_at_k, recall_at_k
 
@@ -20,8 +21,8 @@ def evaluate_retriever(
     Queries without any judged-relevant document are skipped (they cannot be scored).
     """
     max_k = max(ks)
-    per_query = []
-    latencies = []
+    per_query: list[dict[str, Any]] = []
+    latencies: list[float] = []
     for qid, text in queries.items():
         rel = qrels.get(qid)
         if not rel:
