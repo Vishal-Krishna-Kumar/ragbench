@@ -108,6 +108,45 @@ because the postings are built in pure Python; that is the remaining cost.
 `python -m ragbench.beir <name>` works for other BEIR datasets that use the same layout (for example
 `nfcorpus` or `fiqa`).
 
+## Use it as a library
+```python
+from ragbench.data import load_dataset
+from ragbench.evaluate import evaluate_retriever, missed_queries
+from ragbench.retrievers import make_retriever
+
+r = make_retriever("hybrid_rrf").fit(
+    ["a", "b"], ["BM25 ranks by term frequency", "Docker builds container images"]
+)
+r.search("container images", k=1)  # [('b', 0.03278688524590164)]
+
+ds = load_dataset("data/sample")
+res = evaluate_retriever(make_retriever("bm25").fit(ds.doc_ids, ds.docs), ds.queries, ds.qrels)
+res["metrics"]["ndcg@10"]  # 0.956
+[m["query_id"] for m in missed_queries(res, ds.queries, k=1)]  # ['q21']
+```
+
+## How it fits together
+```mermaid
+flowchart LR
+    B["beir.py<br/>download and convert"] --> D[("corpus.jsonl<br/>queries.jsonl<br/>qrels.jsonl")]
+    D --> L["data.py<br/>load_dataset"]
+    T["text.py<br/>tokenize"] --> R
+    L --> R{{"retrievers.py<br/>inverted index"}}
+    R --> BM["BM25"]
+    R --> TF["TF-IDF"]
+    BM --> H["Hybrid RRF"]
+    TF --> H
+    BM --> E
+    TF --> E
+    H --> E["evaluate.py<br/>per-query and aggregate"]
+    M["metrics.py<br/>recall, MRR, nDCG"] --> E
+    E --> C["cli.py<br/>table, JSON, CSV, misses"]
+    E --> A["api.py<br/>FastAPI service"]
+```
+
+Every retriever exposes the same two methods, `fit(doc_ids, docs)` and `search(query, k)`, so the
+evaluator, the CLI and the API never need to know which one they are running.
+
 ## Project layout
 ```
 ragbench/
@@ -119,7 +158,7 @@ ragbench/
   beir.py         download a public BEIR dataset and convert it
   api.py          FastAPI service
   cli.py          benchmark CLI
-tests/            metrics, retrievers, API
+tests/            metrics, retrievers, CLI, BEIR conversion, API
 ```
 
 ## Roadmap
