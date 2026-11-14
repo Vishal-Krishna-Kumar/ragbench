@@ -50,3 +50,22 @@ def evaluate_retriever(
         },
         "per_query": per_query,
     }
+
+
+def missed_queries(result: dict, queries: Mapping[str, str], k: int = 5) -> list[dict]:
+    """Queries for which no relevant document appeared in the top ``k``.
+
+    ``result`` is the dict returned by :func:`evaluate_retriever`; ``k`` must be one of the
+    cut-offs it was evaluated at. Each row carries the query text and the top retrieved ids,
+    which is usually enough to see why retrieval failed.
+    """
+    key = f"hit@{k}"
+    rows = result["per_query"]
+    if rows and key not in rows[0]:
+        available = sorted(int(name.split("@")[1]) for name in rows[0] if name.startswith("hit@"))
+        raise ValueError(f"k={k} was not evaluated; choose one of {available}")
+    return [
+        {"query_id": r["query_id"], "query": queries.get(r["query_id"], ""), "top": r["top"]}
+        for r in rows
+        if r[key] == 0
+    ]

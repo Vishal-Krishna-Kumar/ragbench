@@ -56,3 +56,28 @@ def test_sample_dataset_quality_floor():
         res = evaluate_retriever(make_retriever(name).fit(ds.doc_ids, ds.docs), ds.queries, ds.qrels)
         assert res["num_queries"] == 25
         assert res["metrics"]["hit@3"] >= 0.7, (name, res["metrics"])
+
+
+def test_missed_queries_reports_only_queries_without_a_relevant_hit():
+    from ragbench.evaluate import evaluate_retriever, missed_queries
+    from ragbench.retrievers import make_retriever
+
+    ids = ["a", "b", "c"]
+    docs = ["bm25 lexical ranking", "docker container images", "kubernetes pod scheduling"]
+    queries = {"q1": "container images", "q2": "pod scheduling"}
+    qrels = {"q1": {"b": 1}, "q2": {"a": 1}}  # q2's judged document is not the lexical match
+
+    result = evaluate_retriever(make_retriever("bm25").fit(ids, docs), queries, qrels)
+    missed = missed_queries(result, queries, k=1)
+
+    assert [m["query_id"] for m in missed] == ["q2"]
+    assert missed[0]["query"] == "pod scheduling" and missed[0]["top"][0] == "c"
+
+
+def test_missed_queries_rejects_a_cutoff_that_was_not_evaluated():
+    from ragbench.evaluate import evaluate_retriever, missed_queries
+    from ragbench.retrievers import make_retriever
+
+    result = evaluate_retriever(make_retriever("tfidf").fit(["a"], ["some text"]), {"q": "text"}, {"q": {"a": 1}})
+    with pytest.raises(ValueError, match="was not evaluated"):
+        missed_queries(result, {"q": "text"}, k=7)
